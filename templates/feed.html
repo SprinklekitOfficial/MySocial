@@ -70,11 +70,11 @@
                         <h6 class="card-subtitle mb-2 text-muted">
                             {{ post.author_username }}
                             {% if post.verified %}<span class="badge bg-primary">✓</span>{% endif %}
+                            {% if post.author_online %}<span class="text-success">🟢</span>{% endif %}
                             {% if post.hidden %}<span class="badge bg-warning">Hidden</span>{% endif %}
                         </h6>
                     </div>
                     <div>
-                        <!-- Admin actions -->
                         {% if session.get('isAdmin') %}
                         <form method="POST" action="{{ url_for('toggle_hide', post_id=post.id) }}" class="d-inline">
                             <button type="submit" class="btn btn-sm btn-outline-secondary">
@@ -84,7 +84,7 @@
                         <form method="POST" action="{{ url_for('delete_post', post_id=post.id) }}" class="d-inline" onsubmit="return confirm('Delete this post?');">
                             <button type="submit" class="btn btn-sm btn-outline-danger">🗑️</button>
                         </form>
-                        <!-- Admin report button (just like a normal user) -->
+                        <!-- Admin report button -->
                         <form method="POST" action="{{ url_for('report_post', post_id=post.id) }}" class="d-inline">
                             <button type="submit" class="btn btn-sm btn-outline-warning" title="Report this post">🚩</button>
                         </form>
@@ -196,6 +196,10 @@
             document.body.appendChild(alertDiv);
             setTimeout(() => alertDiv.remove(), 3000);
         }
+
+        // Online status ping
+        setInterval(() => { fetch('/api/ping', { method: 'POST' }); }, 30000);
+        fetch('/api/ping', { method: 'POST' });
     </script>
 </body>
 </html>
