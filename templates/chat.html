@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="{{ 'dark' if session.get('dark_mode') else 'light' }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat | MySocial</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{{ url_for('feed') }}">MySocial</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('feed') }}">🏠 Home</a></li>
+                    <li class="nav-item position-relative">
+                        <a class="nav-link" href="{{ url_for('view_notifications') }}">🔔
+                            <span id="unread-badge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="display:none;"></span>
+                        </a>
+                    </li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('profile') }}">👤 Profile</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('inbox') }}">💬 Inbox</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('friends_list') }}">👥 Friends</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('search_users') }}">🔍 Search</a></li>
+                    {% if session.get('isAdmin') %}
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_dashboard') }}">🛡️ Admin</a></li>
+                    {% endif %}
+                    <li class="nav-item">
+                        <form action="{{ url_for('toggle_dark_mode') }}" method="POST" class="d-inline">
+                            <button type="submit" class="btn btn-link nav-link">🌙/☀️</button>
+                        </form>
+                    </li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('logout') }}">🚪 Logout</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+    {% if session.get('email_verified') == False %}
+    <div class="alert alert-warning text-center mb-0 d-flex align-items-center justify-content-center gap-2 py-2">
+        ⚠️ Email not verified.
+        <form method="POST" action="{{ url_for('verify_email') }}" class="d-inline">
+            <button type="submit" class="btn btn-sm btn-warning">Resend</button>
+        </form>
+        <form method="POST" action="{{ url_for('refresh_verification') }}" class="d-inline">
+            <button type="submit" class="btn btn-sm btn-success">Refresh</button>
+        </form>
+    </div>
+    {% endif %}
+
+    <div class="container mt-4" style="max-width: 600px;">
+        <h5 class="mb-3">Chat with 
+            {{ other_user.username }}
+            {% if other_online %}
+                <span class="text-success">🟢 Online</span>
+            {% else %}
+                <span class="text-muted">Offline</span>
+            {% endif %}
+        </h5>
+        <div id="message-area" class="border rounded p-3 mb-3 bg-body" style="height: 60vh; overflow-y: auto;"></div>
+        <form id="message-form" class="d-flex">
+            <input type="text" id="message-input" class="form-control me-2" placeholder="Type a message..." autocomplete="off" required>
+            <button type="submit" class="btn btn-primary">Send</button>
+        </form>
+    </div>
+
+    <!-- Firebase SDK (for real‑time chat) -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+    <script>
+        const firebaseConfig = {
+            apiKey: "{{ config.apiKey }}",
+            authDomain: "{{ config.authDomain }}",
+            databaseURL: "{{ config.databaseURL }}",
+            projectId: "{{ config.projectId }}",
+            storageBucket: "{{ config.storageBucket }}",
+            messagingSenderId: "{{ config.messagingSenderId }}",
+            appId: "{{ config.appId }}"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        const currentUid = "{{ session.uid }}";
+        const otherUid = "{{ other_uid }}";
+        const chatId = "{{ chat_id }}";
+
+        async function loadMessages() {
+            const resp = await fetch(`/api/get_messages/${otherUid}`);
+            const messages = await resp.json();
+            displayMessages(messages);
+            scrollToBottom();
+        }
+
+        function displayMessages(messages) {
+            const area = document.getElementById('message-area');
+            area.innerHTML = '';
+            messages.forEach(msg => appendMessage(msg));
+        }
+
+        function appendMessage(msg) {
+            const area = document.getElementById('message-area');
+            const div = document.createElement('div');
+            div.className = `d-flex flex-column mb-2 ${msg.sender === currentUid ? 'align-items-end' : 'align-items-start'}`;
+            div.innerHTML = `
+                <div class="p-2 rounded ${msg.sender === currentUid ? 'bg-primary text-white' : 'bg-light text-dark'}" style="max-width:75%;">
+                    ${msg.content}
+                </div>
+                <small class="text-muted">${msg.sender_name}</small>
+            `;
+            area.appendChild(div);
+        }
+
+        function scrollToBottom() {
+            const area = document.getElementById('message-area');
+            area.scrollTop = area.scrollHeight;
+        }
+
+        // Real‑time listener
+        db.ref(`messages/${chatId}`).on('child_added', (snapshot) => {
+            const msg = snapshot.val();
+            msg.id = snapshot.key;
+            appendMessage(msg);
+            scrollToBottom();
+        });
+
+        document.getElementById('message-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const input = document.getElementById('message-input');
+            const content = input.value.trim();
+            if (!content) return;
+            await fetch('/api/send_message', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ to: otherUid, content: content })
+            });
+            input.value = '';
+        });
+
+        loadMessages();
+
+        // Online ping
+        setInterval(() => { fetch('/api/ping', { method: 'POST' }); }, 30000);
+        fetch('/api/ping', { method: 'POST' });
+    </script>
+</body>
+</html>
