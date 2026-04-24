@@ -1,6 +1,4 @@
-# app.py
 import os
-import datetime
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 import json
 import time
@@ -13,7 +11,7 @@ import re
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "fallback-secret-change-me")
 
-# === YOUR FIREBASE CONFIG (already filled) ===
+# === YOUR FIREBASE CONFIG ===
 FIREBASE_CONFIG = {
     "apiKey": "AIzaSyBXn_X7c-Pevqrnpwd-I43-DbRGVOeBiEg",
     "authDomain": "squash79-store.firebaseapp.com",
@@ -107,34 +105,6 @@ def add_notification(to_uid, from_uid, notif_type, token, extra=None):
         notif["sender_name"] = from_uid
     db_post(f"/notifications/{to_uid}", notif, token)
 
-def is_online(user_data):
-    if not isinstance(user_data, dict):
-        return False
-    last = user_data.get("last_online", 0)
-    now = int(time.time() * 1000)
-    return (now - last) < 45000
-
-def format_last_seen(timestamp_ms):
-    if not timestamp_ms:
-        return "a while ago"
-    try:
-        dt = datetime.datetime.fromtimestamp(timestamp_ms / 1000)
-        now = datetime.datetime.now()
-        diff = now - dt
-        if diff.total_seconds() < 60:
-            return "just now"
-        elif diff.total_seconds() < 3600:
-            minutes = int(diff.total_seconds() // 60)
-            return f"{minutes} minute{'s' if minutes != 1 else ''} ago"
-        elif diff.total_seconds() < 86400:
-            hours = int(diff.total_seconds() // 3600)
-            return f"{hours} hour{'s' if hours != 1 else ''} ago"
-        else:
-            days = diff.days
-            return f"{days} day{'s' if days != 1 else ''} ago"
-    except:
-        return "a while ago"
-
 # ==================== ROUTES ====================
 
 @app.route("/", methods=["GET", "POST"])
@@ -168,7 +138,6 @@ def login():
                 session["verified"] = False
                 session["dark_mode"] = False
             session["email_verified"] = email_verified
-            db_patch(f"/users/{uid}", {"last_online": int(time.time() * 1000)}, id_token)
             return redirect(url_for("feed"))
         else:
             error = result.get("error", {}).get("message", "Login failed")
@@ -203,8 +172,7 @@ def signup():
                 "verified": False,
                 "banned": False,
                 "isAdmin": first_user,
-                "dark_mode": False,
-                "last_online": 0
+                "dark_mode": False
             }
             db_put(f"/users/{uid}", profile, id_token)
             send_verification_email(id_token)
@@ -264,7 +232,6 @@ def feed():
     posts_data = db_get("/posts", session["id_token"])
     posts_list = []
     if isinstance(posts_data, dict):
-        all_users = db_get("/users", session["id_token"])
         for post_id, post in posts_data.items():
             if isinstance(post, dict):
                 if not session.get("isAdmin", False) and post.get("hidden", False):
@@ -281,14 +248,6 @@ def feed():
                             comment_list.append(c)
                     comment_list.sort(key=lambda x: x.get("timestamp", 0))
                 post["comment_list"] = comment_list
-                author_email = post.get("author_email", "")
-                author_online = False
-                if isinstance(all_users, dict):
-                    for uid, u in all_users.items():
-                        if isinstance(u, dict) and u.get("email") == author_email:
-                            author_online = is_online(u)
-                            break
-                post["author_online"] = author_online
                 posts_list.append(post)
         posts_list.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
     return render_template("feed.html", posts=posts_list)
@@ -327,6 +286,7 @@ def comment_post(post_id):
     db_post(f"/posts/{post_id}/comments", comment, session["id_token"])
     return redirect(url_for("feed"))
 
+# ---------- Post Reporting ----------
 @app.route("/report/<post_id>", methods=["POST"])
 def report_post(post_id):
     if "user" not in session:
@@ -349,18 +309,10 @@ def profile():
     if "user" not in session:
         return redirect(url_for("login"))
     uid = session.get("uid")
-    db_patch(f"/users/{uid}", {"last_online": int(time.time() * 1000)}, session["id_token"])
     profile_data = db_get(f"/users/{uid}", session["id_token"])
     if not isinstance(profile_data, dict):
         profile_data = {"email": session["user"], "username": session["user"], "bio": "", "profile_pic": "", "verified": False, "dark_mode": False}
-
-    online = is_online(profile_data)
-    last_seen = ""
-    if not online:
-        last = profile_data.get("last_online", 0)
-        last_seen = format_last_seen(last)
-
-    return render_template("profile.html", profile=profile_data, online=online, last_seen=last_seen)
+    return render_template("profile.html", profile=profile_data)
 
 @app.route("/profile/edit", methods=["GET", "POST"])
 def edit_profile():
@@ -424,7 +376,6 @@ def search_users():
             if q.lower() in username.lower() or q.lower() in email.lower():
                 data["uid"] = uid
                 data["is_me"] = (uid == session["uid"])
-                data["online"] = is_online(data)
                 if uid != session["uid"]:
                     friends = db_get(f"/friends/{session['uid']}", session["id_token"])
                     data["status"] = "none"
@@ -477,7 +428,6 @@ def friends_list():
             prof = db_get(f"/users/{f_uid}", session["id_token"])
             if isinstance(prof, dict):
                 prof["uid"] = f_uid
-                prof["online"] = is_online(prof)
                 friends.append(prof)
     pending = []
     if isinstance(requests_data, dict):
@@ -486,7 +436,6 @@ def friends_list():
                 sender_prof = db_get(f"/users/{sender}", session["id_token"])
                 if isinstance(sender_prof, dict):
                     sender_prof["uid"] = sender
-                    sender_prof["online"] = is_online(sender_prof)
                     pending.append(sender_prof)
     return render_template("friends.html", friends=friends, pending_requests=pending)
 
@@ -503,7 +452,6 @@ def inbox():
             prof = db_get(f"/users/{f_uid}", session["id_token"])
             if isinstance(prof, dict):
                 prof["uid"] = f_uid
-                prof["online"] = is_online(prof)
                 chat_id = get_chat_id(cur_uid, f_uid)
                 msgs = db_get(f"/messages/{chat_id}", session["id_token"])
                 if isinstance(msgs, dict):
@@ -526,12 +474,10 @@ def chat_page(other_uid):
     other_prof = db_get(f"/users/{other_uid}", session["id_token"])
     if not isinstance(other_prof, dict):
         other_prof = {"username": "Unknown", "email": ""}
-    other_online = is_online(other_prof)
     return render_template("chat.html",
                            other_user=other_prof,
                            other_uid=other_uid,
                            chat_id=get_chat_id(cur_uid, other_uid),
-                           other_online=other_online,
                            config={
                                "apiKey": API_KEY,
                                "authDomain": FIREBASE_CONFIG["authDomain"],
@@ -614,22 +560,20 @@ def api_unread_notifications():
                 unread += 1
     return jsonify({"unread": unread})
 
-# ---------- Online Ping ----------
-@app.route("/api/ping", methods=["POST"])
-def api_ping():
-    if "user" not in session:
-        return jsonify({"success": False}), 401
-    db_patch(f"/users/{session['uid']}", {"last_online": int(time.time() * 1000)}, session["id_token"])
-    return jsonify({"success": True})
-
 # ---------- Admin ----------
 @app.route("/admin")
 def admin_dashboard():
     if not session.get("isAdmin"):
         return "Access denied.", 403
     users_data = db_get("/users", session["id_token"])
+    # Check for auth error (expired token)
+    if isinstance(users_data, dict) and "error" in users_data:
+        session.clear()
+        return redirect(url_for("login"))
+    total_users = 0
+    if isinstance(users_data, dict):
+        total_users = sum(1 for v in users_data.values() if isinstance(v, dict))
     posts_data = db_get("/posts", session["id_token"])
-    total_users = len(users_data) if isinstance(users_data, dict) else 0
     total_posts = len(posts_data) if isinstance(posts_data, dict) else 0
     return render_template("admin_dashboard.html", total_users=total_users, total_posts=total_posts)
 
@@ -638,17 +582,15 @@ def admin_users():
     if not session.get("isAdmin"):
         return "Access denied.", 403
     all_users = db_get("/users", session["id_token"])
+    if isinstance(all_users, dict) and "error" in all_users:
+        session.clear()
+        return redirect(url_for("login"))
     users_list = []
     if isinstance(all_users, dict):
         for uid, data in all_users.items():
-            if not isinstance(data, dict):
-                continue
-            data["uid"] = uid
-            data["online"] = is_online(data)
-            data["last_seen"] = format_last_seen(data.get("last_online", 0)) if not data["online"] else ""
-            users_list.append(data)
-    # Sort: online first, then alphabetically
-    users_list.sort(key=lambda x: (not x.get("online", False), x.get("username", "").lower()))
+            if isinstance(data, dict):
+                data["uid"] = uid
+                users_list.append(data)
     return render_template("admin_users.html", users=users_list)
 
 @app.route("/admin/posts")
@@ -671,7 +613,7 @@ def admin_reports():
         return "Access denied.", 403
     reports_data = db_get("/reports/posts", session["id_token"])
     reports_list = []
-    if isinstance(reports_data, dict):
+    if isinstance(reports_data, dict) and "error" not in reports_data:
         for post_id, reporters in reports_data.items():
             if isinstance(reporters, dict):
                 for uid, rep in reporters.items():
