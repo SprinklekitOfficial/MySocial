@@ -1,5 +1,6 @@
 # app.py
 import os
+import datetime                      # <-- added for last-seen formatting
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 import json
 import time
@@ -114,6 +115,28 @@ def is_online(user_data):
     now = int(time.time() * 1000)
     return (now - last) < 45000
 
+def format_last_seen(timestamp_ms):
+    """Convert a millisecond timestamp to a human-readable 'last seen' string."""
+    if not timestamp_ms:
+        return "a while ago"
+    try:
+        dt = datetime.datetime.fromtimestamp(timestamp_ms / 1000)
+        now = datetime.datetime.now()
+        diff = now - dt
+        if diff.total_seconds() < 60:
+            return "just now"
+        elif diff.total_seconds() < 3600:
+            minutes = int(diff.total_seconds() // 60)
+            return f"{minutes} minute{'s' if minutes != 1 else ''} ago"
+        elif diff.total_seconds() < 86400:
+            hours = int(diff.total_seconds() // 3600)
+            return f"{hours} hour{'s' if hours != 1 else ''} ago"
+        else:
+            days = diff.days
+            return f"{days} day{'s' if days != 1 else ''} ago"
+    except:
+        return "a while ago"
+
 # ==================== ROUTES ====================
 
 @app.route("/", methods=["GET", "POST"])
@@ -147,7 +170,6 @@ def login():
                 session["verified"] = False
                 session["dark_mode"] = False
             session["email_verified"] = email_verified
-            # Update last_online immediately
             db_patch(f"/users/{uid}", {"last_online": int(time.time() * 1000)}, id_token)
             return redirect(url_for("feed"))
         else:
@@ -184,7 +206,7 @@ def signup():
                 "banned": False,
                 "isAdmin": first_user,
                 "dark_mode": False,
-                "last_online": 0              # new field
+                "last_online": 0
             }
             db_put(f"/users/{uid}", profile, id_token)
             send_verification_email(id_token)
@@ -244,7 +266,6 @@ def feed():
     posts_data = db_get("/posts", session["id_token"])
     posts_list = []
     if isinstance(posts_data, dict):
-        # cache all users for online status lookup
         all_users = db_get("/users", session["id_token"])
         for post_id, post in posts_data.items():
             if isinstance(post, dict):
@@ -262,7 +283,6 @@ def feed():
                             comment_list.append(c)
                     comment_list.sort(key=lambda x: x.get("timestamp", 0))
                 post["comment_list"] = comment_list
-                # Determine author online status
                 author_email = post.get("author_email", "")
                 author_online = False
                 if isinstance(all_users, dict):
@@ -314,7 +334,6 @@ def report_post(post_id):
     if "user" not in session:
         return redirect(url_for("login"))
     existing = db_get(f"/reports/posts/{post_id}/{session['uid']}", session["id_token"])
-    # If already reported, silently redirect (soft confirmation)
     if isinstance(existing, dict):
         return redirect(url_for("feed") + "?reported=1")
     report_data = {
@@ -335,7 +354,15 @@ def profile():
     profile_data = db_get(f"/users/{uid}", session["id_token"])
     if not isinstance(profile_data, dict):
         profile_data = {"email": session["user"], "username": session["user"], "bio": "", "profile_pic": "", "verified": False, "dark_mode": False}
-    return render_template("profile.html", profile=profile_data)
+
+    # Compute online status and last seen
+    online = is_online(profile_data)
+    last_seen = ""
+    if not online:
+        last = profile_data.get("last_online", 0)
+        last_seen = format_last_seen(last)
+
+    return render_template("profile.html", profile=profile_data, online=online, last_seen=last_seen)
 
 @app.route("/profile/edit", methods=["GET", "POST"])
 def edit_profile():
@@ -597,7 +624,7 @@ def api_ping():
     db_patch(f"/users/{session['uid']}", {"last_online": int(time.time() * 1000)}, session["id_token"])
     return jsonify({"success": True})
 
-# ---------- Admin ----------
+# ---------- Admin (unchanged) ----------
 @app.route("/admin")
 def admin_dashboard():
     if not session.get("isAdmin"):
