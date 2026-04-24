@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="{{ 'dark' if session.get('dark_mode') else 'light' }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Users | Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{{ url_for('admin_dashboard') }}">Admin Panel</a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="{{ url_for('feed') }}">🏠 Main Site</a>
+                <a class="nav-link" href="{{ url_for('logout') }}">🚪 Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <h2>All Users</h2>
+        <form id="bulkForm" method="POST" action="{{ url_for('bulk_users') }}">
+            <div class="d-flex align-items-center mb-3">
+                <select name="action" class="form-select form-select-sm me-2" style="width: auto;">
+                    <option value="">Bulk Actions...</option>
+                    <option value="verify">Verify</option>
+                    <option value="unverify">Unverify</option>
+                    <option value="ban">Ban</option>
+                    <option value="unban">Unban</option>
+                    <option value="make_admin">Make Admin</option>
+                    <option value="revoke_admin">Revoke Admin</option>
+                    <option value="delete">Delete Accounts</option>
+                </select>
+                <button type="submit" class="btn btn-sm btn-primary" onclick="return confirm('Apply selected action to checked users?')">Apply</button>
+            </div>
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th><input type="checkbox" id="selectAll"></th>
+                        <th>Username</th>
+                        <th>Email</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td><input type="checkbox" name="uids" value="{{ user.uid }}"></td>
+                        <td>
+                            {{ user.username }}
+                            {% if user.verified %} <span class="badge bg-primary">✓ Verified</span> {% endif %}
+                            {% if user.isAdmin %} <span class="badge bg-danger">Admin</span> {% endif %}
+                            {% if user.banned %} <span class="badge bg-warning">Banned</span> {% endif %}
+                        </td>
+                        <td>{{ user.email }}</td>
+                        <td>
+                            {% if user.banned %}
+                                <span class="text-danger">Banned</span>
+                            {% else %}
+                                <span class="text-success">Active</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <!-- Individual quick actions (still work) -->
+                            <form method="POST" action="{{ url_for('toggle_verify', uid=user.uid) }}" style="display:inline;">
+                                <button type="submit" class="btn btn-sm {% if user.verified %}btn-outline-secondary{% else %}btn-outline-primary{% endif %}">
+                                    {% if user.verified %}Unverify{% else %}Verify{% endif %}
+                                </button>
+                            </form>
+                            <form method="POST" action="{{ url_for('toggle_ban', uid=user.uid) }}" style="display:inline;">
+                                <button type="submit" class="btn btn-sm {% if user.banned %}btn-success{% else %}btn-warning{% endif %}">
+                                    {% if user.banned %}Unban{% else %}Ban{% endif %}
+                                </button>
+                            </form>
+                            <form method="POST" action="{{ url_for('toggle_admin', uid=user.uid) }}" style="display:inline;">
+                                <button type="submit" class="btn btn-sm {% if user.isAdmin %}btn-secondary{% else %}btn-danger{% endif %}">
+                                    {% if user.isAdmin %}Revoke Admin{% else %}Make Admin{% endif %}
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById('selectAll').addEventListener('click', function() {
+            const checkboxes = document.querySelectorAll('input[name="uids"]');
+            checkboxes.forEach(cb => cb.checked = this.checked);
+        });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

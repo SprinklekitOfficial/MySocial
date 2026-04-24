@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="{{ 'dark' if session.get('dark_mode') else 'light' }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard | MySocial</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{{ url_for('feed') }}">MySocial Admin</a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="{{ url_for('feed') }}">🏠 Main Site</a>
+                <a class="nav-link" href="{{ url_for('logout') }}">🚪 Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <h2>Admin Dashboard</h2>
+        <div class="row mt-4">
+            <div class="col-md-4">
+                <div class="card text-white bg-primary mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ total_users }}</h5>
+                        <p class="card-text">Total Users</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card text-white bg-success mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ total_posts }}</h5>
+                        <p class="card-text">Total Posts</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="row mt-4">
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">User Management</h5>
+                        <p class="card-text">View all users, bulk actions, verify, ban.</p>
+                        <a href="{{ url_for('admin_users') }}" class="btn btn-primary">Manage Users</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">Post Management</h5>
+                        <p class="card-text">Delete, hide/unhide all posts.</p>
+                        <a href="{{ url_for('admin_posts') }}" class="btn btn-warning">Manage Posts</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">Reports</h5>
+                        <p class="card-text">Review reported posts and take action.</p>
+                        <a href="{{ url_for('admin_reports') }}" class="btn btn-danger">View Reports</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
