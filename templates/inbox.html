@@ -60,7 +60,10 @@
                         {{ friend.username[0].upper() }}
                     </div>
                     <div>
-                        <h5 class="card-title">{{ friend.username }}</h5>
+                        <h5 class="card-title">
+                            {{ friend.username }}
+                            {% if friend.online %}<span class="text-success">🟢</span>{% endif %}
+                        </h5>
                         <p class="card-text text-muted">{{ friend.last_message }}</p>
                     </div>
                 </div>
@@ -88,6 +91,9 @@
         }
         updateUnreadBadge();
         setInterval(updateUnreadBadge, 10000);
+
+        setInterval(() => { fetch('/api/ping', { method: 'POST' }); }, 30000);
+        fetch('/api/ping', { method: 'POST' });
     </script>
 </body>
 </html>
