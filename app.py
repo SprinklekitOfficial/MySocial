@@ -293,6 +293,7 @@ def report_post(post_id):
         return redirect(url_for("login"))
     existing = db_get(f"/reports/posts/{post_id}/{session['uid']}", session["id_token"])
     if isinstance(existing, dict):
+        # Already reported – just redirect peacefully with a flag
         return redirect(url_for("feed") + "?reported=1")
     report_data = {
         "reporter": session["uid"],
@@ -560,31 +561,26 @@ def api_unread_notifications():
                 unread += 1
     return jsonify({"unread": unread})
 
-# ---------- Admin ----------
+# ---------- Admin (now all routes verify login first) ----------
 @app.route("/admin")
 def admin_dashboard():
+    if "user" not in session:
+        return redirect(url_for("login"))
     if not session.get("isAdmin"):
         return "Access denied.", 403
     users_data = db_get("/users", session["id_token"])
-    # Check for auth error (expired token)
-    if isinstance(users_data, dict) and "error" in users_data:
-        session.clear()
-        return redirect(url_for("login"))
-    total_users = 0
-    if isinstance(users_data, dict):
-        total_users = sum(1 for v in users_data.values() if isinstance(v, dict))
     posts_data = db_get("/posts", session["id_token"])
+    total_users = len(users_data) if isinstance(users_data, dict) else 0
     total_posts = len(posts_data) if isinstance(posts_data, dict) else 0
     return render_template("admin_dashboard.html", total_users=total_users, total_posts=total_posts)
 
 @app.route("/admin/users")
 def admin_users():
+    if "user" not in session:
+        return redirect(url_for("login"))
     if not session.get("isAdmin"):
         return "Access denied.", 403
     all_users = db_get("/users", session["id_token"])
-    if isinstance(all_users, dict) and "error" in all_users:
-        session.clear()
-        return redirect(url_for("login"))
     users_list = []
     if isinstance(all_users, dict):
         for uid, data in all_users.items():
@@ -595,6 +591,8 @@ def admin_users():
 
 @app.route("/admin/posts")
 def admin_posts():
+    if "user" not in session:
+        return redirect(url_for("login"))
     if not session.get("isAdmin"):
         return "Access denied.", 403
     all_posts = db_get("/posts", session["id_token"])
@@ -609,11 +607,13 @@ def admin_posts():
 
 @app.route("/admin/reports")
 def admin_reports():
+    if "user" not in session:
+        return redirect(url_for("login"))
     if not session.get("isAdmin"):
         return "Access denied.", 403
     reports_data = db_get("/reports/posts", session["id_token"])
     reports_list = []
-    if isinstance(reports_data, dict) and "error" not in reports_data:
+    if isinstance(reports_data, dict):
         for post_id, reporters in reports_data.items():
             if isinstance(reporters, dict):
                 for uid, rep in reporters.items():
@@ -626,6 +626,8 @@ def admin_reports():
 
 @app.route("/admin/dismiss_report/<post_id>/<reporter_uid>", methods=["POST"])
 def dismiss_report(post_id, reporter_uid):
+    if "user" not in session:
+        return redirect(url_for("login"))
     if not session.get("isAdmin"):
         return "Access denied.", 403
     db_patch(f"/reports/posts/{post_id}/{reporter_uid}", {"status": "dismissed"}, session["id_token"])
@@ -633,6 +635,8 @@ def dismiss_report(post_id, reporter_uid):
 
 @app.route("/admin/toggle_hide/<post_id>", methods=["POST"])
 def toggle_hide(post_id):
+    if "user" not in session:
+        return redirect(url_for("login"))
     if not session.get("isAdmin"):
         return "Access denied.", 403
     post = db_get(f"/posts/{post_id}", session["id_token"])
@@ -643,6 +647,8 @@ def toggle_hide(post_id):
 
 @app.route("/admin/delete_post/<post_id>", methods=["POST"])
 def delete_post(post_id):
+    if "user" not in session:
+        return redirect(url_for("login"))
     if not session.get("isAdmin"):
         return "Access denied.", 403
     db_delete(f"/posts/{post_id}", session["id_token"])
@@ -650,6 +656,8 @@ def delete_post(post_id):
 
 @app.route("/admin/bulk_users", methods=["POST"])
 def bulk_users():
+    if "user" not in session:
+        return redirect(url_for("login"))
     if not session.get("isAdmin"):
         return "Access denied.", 403
     uids = request.form.getlist("uids")
@@ -677,7 +685,10 @@ def bulk_users():
 
 @app.route("/admin/toggle_verify/<uid>", methods=["POST"])
 def toggle_verify(uid):
-    if not session.get("isAdmin"): return "Access denied.", 403
+    if "user" not in session:
+        return redirect(url_for("login"))
+    if not session.get("isAdmin"):
+        return "Access denied.", 403
     user = db_get(f"/users/{uid}", session["id_token"])
     if isinstance(user, dict):
         curr = user.get("verified", False)
@@ -688,8 +699,12 @@ def toggle_verify(uid):
 
 @app.route("/admin/toggle_ban/<uid>", methods=["POST"])
 def toggle_ban(uid):
-    if not session.get("isAdmin"): return "Access denied.", 403
-    if uid == session["uid"]: return "Cannot ban self.", 400
+    if "user" not in session:
+        return redirect(url_for("login"))
+    if not session.get("isAdmin"):
+        return "Access denied.", 403
+    if uid == session["uid"]:
+        return "Cannot ban self.", 400
     user = db_get(f"/users/{uid}", session["id_token"])
     if isinstance(user, dict):
         curr = user.get("banned", False)
@@ -698,7 +713,10 @@ def toggle_ban(uid):
 
 @app.route("/admin/toggle_admin/<uid>", methods=["POST"])
 def toggle_admin(uid):
-    if not session.get("isAdmin"): return "Access denied.", 403
+    if "user" not in session:
+        return redirect(url_for("login"))
+    if not session.get("isAdmin"):
+        return "Access denied.", 403
     user = db_get(f"/users/{uid}", session["id_token"])
     if isinstance(user, dict):
         curr = user.get("isAdmin", False)
