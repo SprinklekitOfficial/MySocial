@@ -12,6 +12,7 @@ import re
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "fallback-secret-change-me")
 
+# === YOUR FIREBASE CONFIG (already filled) ===
 FIREBASE_CONFIG = {
     "apiKey": "AIzaSyBXn_X7c-Pevqrnpwd-I43-DbRGVOeBiEg",
     "authDomain": "squash79-store.firebaseapp.com",
@@ -24,6 +25,7 @@ FIREBASE_CONFIG = {
 API_KEY = FIREBASE_CONFIG["apiKey"]
 DATABASE_URL = FIREBASE_CONFIG["databaseURL"]
 
+# ---------- Helper Functions ----------
 def _make_request(url, method="GET", data=None, headers=None):
     if headers is None:
         headers = {}
@@ -105,13 +107,15 @@ def add_notification(to_uid, from_uid, notif_type, token, extra=None):
     db_post(f"/notifications/{to_uid}", notif, token)
 
 def is_online(user_data):
+    """Return True if last_online is within the last 45 seconds."""
     if not isinstance(user_data, dict):
         return False
     last = user_data.get("last_online", 0)
     now = int(time.time() * 1000)
     return (now - last) < 45000
 
-# ============ ROUTES ============
+# ==================== ROUTES ====================
+
 @app.route("/", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -143,6 +147,7 @@ def login():
                 session["verified"] = False
                 session["dark_mode"] = False
             session["email_verified"] = email_verified
+            # Update last_online immediately
             db_patch(f"/users/{uid}", {"last_online": int(time.time() * 1000)}, id_token)
             return redirect(url_for("feed"))
         else:
@@ -179,7 +184,7 @@ def signup():
                 "banned": False,
                 "isAdmin": first_user,
                 "dark_mode": False,
-                "last_online": 0
+                "last_online": 0              # new field
             }
             db_put(f"/users/{uid}", profile, id_token)
             send_verification_email(id_token)
@@ -239,7 +244,7 @@ def feed():
     posts_data = db_get("/posts", session["id_token"])
     posts_list = []
     if isinstance(posts_data, dict):
-        # cache all users to avoid repeated fetches
+        # cache all users for online status lookup
         all_users = db_get("/users", session["id_token"])
         for post_id, post in posts_data.items():
             if isinstance(post, dict):
@@ -259,7 +264,6 @@ def feed():
                 post["comment_list"] = comment_list
                 # Determine author online status
                 author_email = post.get("author_email", "")
-                # find user by email from all_users
                 author_online = False
                 if isinstance(all_users, dict):
                     for uid, u in all_users.items():
@@ -310,6 +314,7 @@ def report_post(post_id):
     if "user" not in session:
         return redirect(url_for("login"))
     existing = db_get(f"/reports/posts/{post_id}/{session['uid']}", session["id_token"])
+    # If already reported, silently redirect (soft confirmation)
     if isinstance(existing, dict):
         return redirect(url_for("feed") + "?reported=1")
     report_data = {
@@ -395,7 +400,6 @@ def search_users():
                 data["uid"] = uid
                 data["is_me"] = (uid == session["uid"])
                 data["online"] = is_online(data)
-                # friendship status for others
                 if uid != session["uid"]:
                     friends = db_get(f"/friends/{session['uid']}", session["id_token"])
                     data["status"] = "none"
@@ -593,7 +597,7 @@ def api_ping():
     db_patch(f"/users/{session['uid']}", {"last_online": int(time.time() * 1000)}, session["id_token"])
     return jsonify({"success": True})
 
-# ---------- Admin (unchanged bulk, etc.) ----------
+# ---------- Admin ----------
 @app.route("/admin")
 def admin_dashboard():
     if not session.get("isAdmin"):
