@@ -84,7 +84,7 @@
                             <button type="submit" class="btn btn-sm btn-outline-danger">🗑️</button>
                         </form>
                         {% else %}
-                        <!-- Report button for normal users -->
+                        <!-- Report button -->
                         <form method="POST" action="{{ url_for('report_post', post_id=post.id) }}" class="d-inline">
                             <button type="submit" class="btn btn-sm btn-outline-warning" title="Report this post">🚩</button>
                         </form>
@@ -182,6 +182,15 @@
         }
         updateUnreadBadge();
         setInterval(updateUnreadBadge, 10000);
+
+        // Show report confirmation if ?reported=1
+        if (window.location.search.includes('reported=1')) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'alert alert-success position-fixed bottom-0 end-0 m-3';
+            alertDiv.textContent = '🚩 Report sent.';
+            document.body.appendChild(alertDiv);
+            setTimeout(() => alertDiv.remove(), 3000);
+        }
     </script>
 </body>
 </html>
