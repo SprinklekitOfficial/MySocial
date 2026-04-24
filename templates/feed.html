@@ -84,12 +84,10 @@
                         <form method="POST" action="{{ url_for('delete_post', post_id=post.id) }}" class="d-inline" onsubmit="return confirm('Delete this post?');">
                             <button type="submit" class="btn btn-sm btn-outline-danger">🗑️</button>
                         </form>
-                        <!-- Admin report button -->
                         <form method="POST" action="{{ url_for('report_post', post_id=post.id) }}" class="d-inline">
                             <button type="submit" class="btn btn-sm btn-outline-warning" title="Report this post">🚩</button>
                         </form>
                         {% else %}
-                        <!-- Normal user report button -->
                         <form method="POST" action="{{ url_for('report_post', post_id=post.id) }}" class="d-inline">
                             <button type="submit" class="btn btn-sm btn-outline-warning" title="Report this post">🚩</button>
                         </form>
