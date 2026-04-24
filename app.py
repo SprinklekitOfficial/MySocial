@@ -1,4 +1,3 @@
-# app.py
 import os
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 import json
@@ -293,8 +292,9 @@ def report_post(post_id):
     if "user" not in session:
         return redirect(url_for("login"))
     existing = db_get(f"/reports/posts/{post_id}/{session['uid']}", session["id_token"])
+    # If already reported, silently redirect back to feed (no error)
     if isinstance(existing, dict):
-        return "You have already reported this post."
+        return redirect(url_for("feed") + "?reported=1")
     report_data = {
         "reporter": session["uid"],
         "reporter_name": session.get("username", session["user"]),
@@ -302,7 +302,7 @@ def report_post(post_id):
         "status": "pending"
     }
     db_put(f"/reports/posts/{post_id}/{session['uid']}", report_data, session["id_token"])
-    return redirect(url_for("feed"))
+    return redirect(url_for("feed") + "?reported=1")
 
 # ---------- Profile / Email ----------
 @app.route("/profile")
