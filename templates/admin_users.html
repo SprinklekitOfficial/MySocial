@@ -10,15 +10,20 @@
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container-fluid">
             <a class="navbar-brand" href="{{ url_for('admin_dashboard') }}">Admin Panel</a>
-            <div class="navbar-nav ms-auto">
-                <a class="nav-link" href="{{ url_for('feed') }}">🏠 Main Site</a>
-                <a class="nav-link" href="{{ url_for('logout') }}">🚪 Logout</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('feed') }}">🏠 Main Site</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('logout') }}">🚪 Logout</a></li>
+                </ul>
             </div>
         </div>
     </nav>
 
     <div class="container mt-4">
-        <h2>All Users</h2>
+        <h2>All Users ({{ users|length }})</h2>
         <form id="bulkForm" method="POST" action="{{ url_for('bulk_users') }}">
             <div class="d-flex align-items-center mb-3">
                 <select name="action" class="form-select form-select-sm me-2" style="width: auto;">
@@ -33,56 +38,79 @@
                 </select>
                 <button type="submit" class="btn btn-sm btn-primary" onclick="return confirm('Apply selected action to checked users?')">Apply</button>
             </div>
-            <table class="table table-striped">
-                <thead>
-                    <tr>
-                        <th><input type="checkbox" id="selectAll"></th>
-                        <th>Username</th>
-                        <th>Email</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for user in users %}
-                    <tr>
-                        <td><input type="checkbox" name="uids" value="{{ user.uid }}"></td>
-                        <td>
-                            {{ user.username }}
-                            {% if user.verified %} <span class="badge bg-primary">✓ Verified</span> {% endif %}
-                            {% if user.isAdmin %} <span class="badge bg-danger">Admin</span> {% endif %}
-                            {% if user.banned %} <span class="badge bg-warning">Banned</span> {% endif %}
-                        </td>
-                        <td>{{ user.email }}</td>
-                        <td>
-                            {% if user.banned %}
-                                <span class="text-danger">Banned</span>
-                            {% else %}
-                                <span class="text-success">Active</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            <!-- Individual quick actions (still work) -->
-                            <form method="POST" action="{{ url_for('toggle_verify', uid=user.uid) }}" style="display:inline;">
-                                <button type="submit" class="btn btn-sm {% if user.verified %}btn-outline-secondary{% else %}btn-outline-primary{% endif %}">
-                                    {% if user.verified %}Unverify{% else %}Verify{% endif %}
-                                </button>
-                            </form>
-                            <form method="POST" action="{{ url_for('toggle_ban', uid=user.uid) }}" style="display:inline;">
-                                <button type="submit" class="btn btn-sm {% if user.banned %}btn-success{% else %}btn-warning{% endif %}">
-                                    {% if user.banned %}Unban{% else %}Ban{% endif %}
-                                </button>
-                            </form>
-                            <form method="POST" action="{{ url_for('toggle_admin', uid=user.uid) }}" style="display:inline;">
-                                <button type="submit" class="btn btn-sm {% if user.isAdmin %}btn-secondary{% else %}btn-danger{% endif %}">
-                                    {% if user.isAdmin %}Revoke Admin{% else %}Make Admin{% endif %}
-                                </button>
-                            </form>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+            <div class="table-responsive">
+                <table class="table table-striped align-middle">
+                    <thead>
+                        <tr>
+                            <th><input type="checkbox" id="selectAll"></th>
+                            <th>Username</th>
+                            <th>Email</th>
+                            <th>Status</th>
+                            <th>Online</th>
+                            <th>Last Seen</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                        <tr>
+                            <td><input type="checkbox" name="uids" value="{{ user.uid }}"></td>
+                            <td>
+                                {{ user.username }}
+                                {% if user.verified %} <span class="badge bg-primary">✓ Verified</span> {% endif %}
+                                {% if user.isAdmin %} <span class="badge bg-danger">Admin</span> {% endif %}
+                                {% if user.banned %} <span class="badge bg-warning">Banned</span> {% endif %}
+                            </td>
+                            <td>{{ user.email }}</td>
+                            <td>
+                                {% if user.banned %}
+                                    <span class="text-danger">Banned</span>
+                                {% else %}
+                                    <span class="text-success">Active</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if user.online %}
+                                    <span class="text-success">🟢 Online</span>
+                                {% else %}
+                                    <span class="text-muted">⚫ Offline</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if user.online %}
+                                    <span class="text-muted">-</span>
+                                {% else %}
+                                    {{ user.last_seen }}
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="d-flex flex-wrap gap-1">
+                                    <form method="POST" action="{{ url_for('toggle_verify', uid=user.uid) }}" class="d-inline">
+                                        <button type="submit" class="btn btn-sm {% if user.verified %}btn-outline-secondary{% else %}btn-outline-primary{% endif %}">
+                                            {% if user.verified %}Unverify{% else %}Verify{% endif %}
+                                        </button>
+                                    </form>
+                                    <form method="POST" action="{{ url_for('toggle_ban', uid=user.uid) }}" class="d-inline">
+                                        <button type="submit" class="btn btn-sm {% if user.banned %}btn-success{% else %}btn-warning{% endif %}">
+                                            {% if user.banned %}Unban{% else %}Ban{% endif %}
+                                        </button>
+                                    </form>
+                                    <form method="POST" action="{{ url_for('toggle_admin', uid=user.uid) }}" class="d-inline">
+                                        <button type="submit" class="btn btn-sm {% if user.isAdmin %}btn-secondary{% else %}btn-danger{% endif %}">
+                                            {% if user.isAdmin %}Revoke Admin{% else %}Make Admin{% endif %}
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="7" class="text-center">No users found.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </form>
     </div>
 
