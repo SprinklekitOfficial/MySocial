@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="{{ 'dark' if session.get('dark_mode') else 'light' }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Find Friends | MySocial</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{{ url_for('feed') }}">MySocial</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('feed') }}">🏠 Home</a></li>
+                    <li class="nav-item position-relative">
+                        <a class="nav-link" href="{{ url_for('view_notifications') }}">🔔
+                            <span id="unread-badge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="display:none;"></span>
+                        </a>
+                    </li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('profile') }}">👤 Profile</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('inbox') }}">💬 Inbox</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('friends_list') }}">👥 Friends</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('search_users') }}">🔍 Search</a></li>
+                    {% if session.get('isAdmin') %}
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_dashboard') }}">🛡️ Admin</a></li>
+                    {% endif %}
+                    <li class="nav-item">
+                        <form action="{{ url_for('toggle_dark_mode') }}" method="POST" class="d-inline">
+                            <button type="submit" class="btn btn-link nav-link">🌙/☀️</button>
+                        </form>
+                    </li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('logout') }}">🚪 Logout</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+    {% if session.get('email_verified') == False %}
+    <div class="alert alert-warning text-center mb-0 d-flex align-items-center justify-content-center gap-2 py-2">
+        ⚠️ Email not verified.
+        <form method="POST" action="{{ url_for('verify_email') }}" class="d-inline">
+            <button type="submit" class="btn btn-sm btn-warning">Resend</button>
+        </form>
+        <form method="POST" action="{{ url_for('refresh_verification') }}" class="d-inline">
+            <button type="submit" class="btn btn-sm btn-success">Refresh</button>
+        </form>
+    </div>
+    {% endif %}
+
+    <div class="container mt-4" style="max-width: 600px;">
+        <h2>Find People</h2>
+        <form method="GET" class="mb-4">
+            <div class="input-group">
+                <input type="text" name="q" class="form-control" placeholder="Search by username or email" value="{{ query }}">
+                <button type="submit" class="btn btn-primary">Search</button>
+            </div>
+        </form>
+
+        {% for user in results %}
+        <div class="card mb-3">
+            <div class="card-body d-flex justify-content-between align-items-center">
+                <div>
+                    <h5 class="card-title">
+                        {{ user.username }}
+                        {% if user.verified %}<span class="badge bg-primary">✓ Verified</span>{% endif %}
+                        {% if user.is_me %}<span class="badge bg-info">You</span>{% endif %}
+                    </h5>
+                    <h6 class="card-subtitle mb-2 text-muted">{{ user.email }}</h6>
+                </div>
+                <div>
+                    {% if user.status == "self" %}
+                        <!-- Nothing shown for self -->
+                    {% elif user.status == "none" %}
+                        <form method="POST" action="{{ url_for('friend_action') }}">
+                            <input type="hidden" name="uid" value="{{ user.uid }}">
+                            <input type="hidden" name="action" value="send">
+                            <button type="submit" class="btn btn-outline-primary">Add Friend</button>
+                        </form>
+                    {% elif user.status == "friends" %}
+                        <span class="badge bg-success">Friends</span>
+                        <a href="{{ url_for('chat_page', other_uid=user.uid) }}" class="btn btn-sm btn-outline-secondary">Message</a>
+                    {% elif user.status == "pending_sent" %}
+                        <span class="badge bg-secondary">Request Sent</span>
+                    {% elif user.status == "pending_received" %}
+                        <form method="POST" action="{{ url_for('friend_action') }}">
+                            <input type="hidden" name="uid" value="{{ user.uid }}">
+                            <input type="hidden" name="action" value="accept">
+                            <button type="submit" class="btn btn-success btn-sm">Accept</button>
+                        </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <p>No users found for "{{ query }}".</p>
+        {% endfor %}
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        async function updateUnreadBadge() {
+            try {
+                const resp = await fetch('/api/unread_notifications');
+                const data = await resp.json();
+                const badge = document.getElementById('unread-badge');
+                if (data.unread > 0) {
+                    badge.textContent = data.unread;
+                    badge.style.display = 'inline';
+                } else {
+                    badge.style.display = 'none';
+                }
+            } catch(e) {}
+        }
+        updateUnreadBadge();
+        setInterval(updateUnreadBadge, 10000);
+    </script>
+</body>
+</html>
