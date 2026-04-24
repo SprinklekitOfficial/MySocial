@@ -74,6 +74,7 @@
                         </h6>
                     </div>
                     <div>
+                        <!-- Admin actions -->
                         {% if session.get('isAdmin') %}
                         <form method="POST" action="{{ url_for('toggle_hide', post_id=post.id) }}" class="d-inline">
                             <button type="submit" class="btn btn-sm btn-outline-secondary">
@@ -83,8 +84,12 @@
                         <form method="POST" action="{{ url_for('delete_post', post_id=post.id) }}" class="d-inline" onsubmit="return confirm('Delete this post?');">
                             <button type="submit" class="btn btn-sm btn-outline-danger">🗑️</button>
                         </form>
+                        <!-- Admin report button (just like a normal user) -->
+                        <form method="POST" action="{{ url_for('report_post', post_id=post.id) }}" class="d-inline">
+                            <button type="submit" class="btn btn-sm btn-outline-warning" title="Report this post">🚩</button>
+                        </form>
                         {% else %}
-                        <!-- Report button -->
+                        <!-- Normal user report button -->
                         <form method="POST" action="{{ url_for('report_post', post_id=post.id) }}" class="d-inline">
                             <button type="submit" class="btn btn-sm btn-outline-warning" title="Report this post">🚩</button>
                         </form>
