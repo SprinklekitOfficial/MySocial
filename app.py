@@ -1,6 +1,6 @@
 # app.py
 import os
-import datetime                      # <-- added for last-seen formatting
+import datetime
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 import json
 import time
@@ -116,7 +116,7 @@ def is_online(user_data):
     return (now - last) < 45000
 
 def format_last_seen(timestamp_ms):
-    """Convert a millisecond timestamp to a human-readable 'last seen' string."""
+    """Convert millisecond timestamp to a human-readable 'last seen' string."""
     if not timestamp_ms:
         return "a while ago"
     try:
@@ -351,11 +351,13 @@ def profile():
     if "user" not in session:
         return redirect(url_for("login"))
     uid = session.get("uid")
+    # --- FIX: update last_online immediately so status shows Online ---
+    db_patch(f"/users/{uid}", {"last_online": int(time.time() * 1000)}, session["id_token"])
+    # -----------------------------------------------------------------
     profile_data = db_get(f"/users/{uid}", session["id_token"])
     if not isinstance(profile_data, dict):
         profile_data = {"email": session["user"], "username": session["user"], "bio": "", "profile_pic": "", "verified": False, "dark_mode": False}
 
-    # Compute online status and last seen
     online = is_online(profile_data)
     last_seen = ""
     if not online:
@@ -624,7 +626,7 @@ def api_ping():
     db_patch(f"/users/{session['uid']}", {"last_online": int(time.time() * 1000)}, session["id_token"])
     return jsonify({"success": True})
 
-# ---------- Admin (unchanged) ----------
+# ---------- Admin ----------
 @app.route("/admin")
 def admin_dashboard():
     if not session.get("isAdmin"):
